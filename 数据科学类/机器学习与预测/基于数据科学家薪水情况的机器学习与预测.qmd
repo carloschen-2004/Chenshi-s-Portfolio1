@@ -1,0 +1,1003 @@
+---
+title: "ML Project"
+format: html
+editor: visual
+---
+
+### 导入必要的包和数据
+
+```{r,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(123)
+library(tidyverse)
+library(networkD3)
+library(treemap)
+library(igraph)
+library(ggraph)
+library(caret)
+library(pROC)
+library(glmnet)
+library(ROCR)
+library(nnet)
+library(neuralnet)
+library(dplyr)
+library(e1071)
+library(rpart)
+library(randomForest)
+library(ipred) 
+library(reshape2)
+```
+
+### 该数据展现了2023年的数据科学领域中不同数据科学岗位的薪资情况 ，来自kaggle
+
+```{r}
+ds_salaries <- read.csv("/Users/keep-rational/Desktop/机器学习与预测大作业/ds_salaries.csv")
+```
+
+### 一、数据的初步探索与可视化
+
+```{r}
+#在职工的住所地点中，住在美国的占了绝大部分
+n_total = nrow(ds_salaries)
+ds_salaries |>
+  group_by(employee_residence) |>
+  summarise(prop = round(n() / n_total,4)) |>
+  arrange(desc(prop)) 
+```
+
+```{r}
+#使用USD作为薪水的记录占大多数；但salary_in_usd统一了薪水情况
+n_total = nrow(ds_salaries)
+ds_salaries |>
+  group_by(salary_currency) |>
+  summarise(prop = round(n() / n_total,4)) |>
+  arrange(desc(prop)) 
+```
+
+```{r}
+#全日制工作占了99%以上，我们剔除其他数据；显然，该属性不能作为一个特征
+n_total = nrow(ds_salaries)
+ds_salaries |>
+  group_by(employment_type) |>
+  summarise(prop = round(n() / n_total,4)) |>
+  arrange(desc(prop)) 
+```
+
+```{r}
+#对原数据集进行修改
+ds_salaries <- ds_salaries |>
+  filter(employment_type == 'FT')
+```
+
+```{r}
+#按照经验水平分成四类：
+#EN（Entry - level）表示初级水平
+#MI（Mid - level）指中级水平 
+#SE（Senior - level）即高级水平 
+#EX（Expert - level）意为专家级 
+#由图所示，处于高级水平的数据科学家最多
+ds_salaries |>
+  group_by(experience_level) |>
+  summarise(n = n())|>
+  arrange(desc(n)) |>
+  mutate(experience_level = case_when(
+    experience_level == "EN" ~ "Entry_Level",
+    experience_level == "MI" ~ "Mid_Level",
+    experience_level == "SE" ~ "Senior_Level",
+    experience_level == "EX" ~ "Expert_Level"
+  )) |>
+  ggplot(aes(x = reorder(experience_level, -n),y = n)) +
+  geom_text(aes(label = n), vjust = -0.5,size = 3) +
+  geom_bar(stat = "identity", fill = "skyblue",color = "black",width = 0.6) +
+  labs(x = 'experience_level',y = "count") +
+  theme_bw()
+```
+
+```{r}
+#工作类型记录最多的是数据工程师
+ds_salaries |>
+  group_by(job_title) |>
+  summarise(n = n())|>
+  arrange(desc(n)) |>
+  slice_head(n=8) |>
+  ggplot(aes(x = reorder(job_title, -n),y = n)) +
+  geom_text(aes(label = n), vjust = -0.5,size = 3) +
+  geom_bar(stat = "identity", fill = "skyblue",color = "black",width = 0.5) +
+  labs(x = 'job_title',y = "count") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1,size = 8))
+```
+
+```{r}
+#根据开始工作的年份分组汇总
+ds_salaries |>
+  group_by(work_year) |>
+  summarise(n = n())|>
+  arrange(desc(n)) |>
+  ggplot(aes(x = reorder(work_year, -n),y = n)) +
+  geom_text(aes(label = n), vjust = -0.5,size = 3) +
+  geom_bar(stat = "identity", fill = "skyblue",color = "black",width = 0.6) +
+  labs(x = 'work_year',y = "count") +
+  theme_bw() 
+```
+
+```{r}
+#根据经验水平和薪资水平分组汇总:专家水平的平均薪资是最高的；相反地，入门水平最低
+ds_salaries |>
+    mutate(experience_level = case_when(
+    experience_level == "EN" ~ "Entry_Level",
+    experience_level == "MI" ~ "Mid_Level",
+    experience_level == "SE" ~ "Senior_Level",
+    experience_level == "EX" ~ "Expert_Level"
+  )) |>
+  group_by(experience_level,salary_in_usd) |>
+  ggplot(aes(x = experience_level, y = salary_in_usd)) +
+  geom_boxplot(color = "black") +
+  theme_bw()
+```
+
+```{r}
+#根据距离远近和薪资水平分组:中等距离的薪水最低，其他亮着并无显著区别
+ds_salaries |>
+    mutate(remote_ratio = case_when(
+    remote_ratio == "0" ~ "short_dist",
+    remote_ratio == "50" ~ "mid_dist",
+    remote_ratio == "100" ~ "long_dist"
+  )) |>
+  group_by(remote_ratio,salary_in_usd) |>
+  ggplot(aes(x = remote_ratio, y = salary_in_usd)) +
+  geom_boxplot(color = "black") +
+  theme_bw()
+```
+
+```{r}
+#交互式桑基图
+job_freq <- ds_salaries |>
+  count(job_title) |>
+  arrange(desc(n)) |>
+  slice_head(n = 8) |>
+  pull(job_title)
+
+filtered_data <- ds_salaries |>
+  filter(job_title %in% job_freq)
+
+#创建节点：经验级别、职位和公司规模
+nodes <- data.frame(name = unique(c(filtered_data$experience_level, 
+                                    filtered_data$job_title, 
+                                    filtered_data$company_size)))
+nodes$node <- 0:(nrow(nodes) - 1)
+
+links <- filtered_data |>
+  group_by(experience_level, job_title, company_size) |>
+  summarise(value = n(), .groups = "drop") |>
+  ungroup() |>
+  filter(value >= 2) |>
+  left_join(nodes, by = c("experience_level" = "name")) |> rename(source = node) |>
+  left_join(nodes, by = c("job_title" = "name")) |> rename(target1 = node) |>
+  left_join(nodes, by = c("company_size" = "name")) |> rename(target2 = node)
+
+links1 <- links |>select(source, target = target1, value)
+links2 <- links |> select(source = target1, target = target2, value)
+links_final <- rbind(links1, links2)
+links_final <- as.data.frame(links_final)
+
+#交互式桑基图
+sankeyNetwork(Links = links_final, 
+              Nodes = nodes, 
+              Source = "source", 
+              Target = "target",
+              Value = "value", 
+              NodeID = "name", 
+              fontSize = 14, 
+              nodeWidth = 40, 
+              nodePadding = 10,
+              height = 400,
+              width = 600,
+              sinksRight = FALSE)
+```
+
+```{r}
+#热力树图
+#按公司地点和职位计算平均薪资
+geo_data <- ds_salaries |>
+  group_by(company_location, job_title) |>
+  summarise(avg_salary = mean(salary_in_usd, na.rm = TRUE), count = n(),.groups = "drop")
+
+#绘制树图，按地点分组
+treemap(geo_data,
+        index = c("company_location", "job_title"),
+        vSize = "count",
+        vColor = "avg_salary",
+        type = "value",
+        palette = "RdYlBu",
+        title = "Salary Distribution by Location and Job Title",
+        fontsize.labels = c(12, 8))
+```
+
+```{r}
+#职位网络图
+net_data <- ds_salaries |>
+  group_by(job_title, company_location) |>
+  summarise(avg_salary = mean(salary_in_usd, na.rm = TRUE), count = n(),.groups = "drop") |>
+  filter(count > 5) # 过滤稀疏连接
+
+edges <- net_data |> 
+  select(job_title, company_location, weight = count)
+
+nodes <- data.frame(name = unique(c(net_data$job_title, net_data$company_location)))
+
+nodes$salary <- sapply(nodes$name, function(x) {
+  mean(net_data$avg_salary[net_data$job_title == x | net_data$company_location == x], na.rm = TRUE)
+})
+
+g <- graph_from_data_frame(edges, vertices = nodes, directed = FALSE)
+
+ggraph(g, layout = "fr") +
+  geom_edge_link(aes(edge_width = weight), alpha = 0.5) +
+  geom_node_point(aes(size = salary, color = name %in% unique(ds_salaries$job_title))) +
+  geom_node_text(aes(label = name), repel = TRUE, size = 3) +
+  scale_edge_width(range = c(0.5, 3)) +
+  scale_size(range = c(3, 10)) +
+  scale_color_manual(values = c("TRUE" = "#FF6666", "FALSE" = "#66CC99")) +
+  theme_void() +
+  labs(title = "Job Title and Location Network", size = "Average Salary", color = "Node Type") +
+ theme(legend.position = "right",plot.title = element_text(hjust = 0.5))
+```
+
+### 二、线性回归
+
+```{r}
+#将原数据清洗后得到ds_data,包含salary_in_usd,remote_ratio,work_year,experience_level,company_size五列，其中薪水是因变量，其他为自变量
+ds_data <- ds_salaries |>
+  mutate(work_year = 2024 - work_year,
+         company_size = case_when(
+           company_size == 'S' ~ '1',
+           company_size == 'M' ~ '2',
+           company_size == 'L' ~ "3"
+         ),
+         experience_level = case_when(
+    experience_level == "EN" ~ "1",
+    experience_level == "MI" ~ "2",
+    experience_level == "SE" ~ "3",
+    experience_level == "EX" ~ "4"
+  ),
+  remote_ratio = case_when(
+    remote_ratio == '0' ~ '1',
+    remote_ratio == '50' ~ '2',
+    remote_ratio == '100' ~ '3'
+  )) |>
+  select(salary_in_usd,remote_ratio,work_year,experience_level,company_size) 
+
+ds_data$work_year <- as.integer(ds_data$work_year)
+ds_data$experience_level <- as.integer(ds_data$experience_level)
+ds_data$company_size <- as.integer(ds_data$company_size)
+ds_data$remote_ratio <- as.integer(ds_data$remote_ratio)
+```
+
+```{r}
+train_index <- createDataPartition(ds_data$salary_in_usd, p = 0.8, list = FALSE)
+train_data <- ds_data[train_index, ]
+test_data <- ds_data[-train_index, ]
+
+# 训练线性回归模型
+linear_model <- lm(salary_in_usd ~ remote_ratio + experience_level + company_size, 
+                   data = train_data)
+
+# 查看线性回归模型的摘要
+cat("\n线性回归模型摘要:\n")
+print(summary(linear_model))
+
+# 使用线性回归模型进行预测
+predictions_lm <- predict(linear_model, newdata = test_data)
+
+# 提取测试集的真实值
+test_outputs <- test_data$salary_in_usd
+
+# 计算回归评估指标：MSE、RMSE 和 MAE
+mse_lm <- mean((predictions_lm - test_outputs)^2)
+rmse_lm <- sqrt(mse_lm)
+mae_lm <- mean(abs(predictions_lm - test_outputs))
+
+# 打印线性回归模型的回归评估结果
+cat("\n线性回归模型的均方误差 (MSE):", mse_lm, "\n")
+cat("线性回归模型的均方根误差 (RMSE):", rmse_lm, "\n")
+cat("线性回归模型的平均绝对误差 (MAE):", mae_lm, "\n")
+```
+
+```{r}
+#可视化残差
+residuals <- data.frame(
+  fitted = fitted(linear_model),
+  residuals = residuals(linear_model)
+)
+
+ggplot(residuals, aes(x = fitted, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  theme_minimal() +
+  labs(x = "fitted_value", y = "residuals")
+```
+
+### 三、逻辑回归
+
+```{r}
+ds_data <- ds_data |>
+  mutate(is_fully_remote = as.integer(remote_ratio == 3))  
+# 1 = 完全远程，0 = 非完全远程
+
+cat("完全远程工作比例：\n")
+table(ds_data$is_fully_remote) / nrow(ds_data)
+
+#Min-Max 归一化
+min_max_normalize <- function(x) {
+  if (max(x, na.rm = TRUE) == min(x, na.rm = TRUE)) {
+    return(rep(0, length(x)))  # 防止除以零
+  }
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+}
+
+ds_salaries_norm <- ds_data |>
+  mutate(
+    salary_in_usd_norm = min_max_normalize(salary_in_usd),
+    experience_level = as.factor(experience_level),
+    company_size = as.factor(company_size),
+    is_fully_remote = as.factor(is_fully_remote)
+  )
+```
+
+```{r}
+#划分训练集和测试集
+sampling_vector <- createDataPartition(ds_salaries_norm$is_fully_remote, p = 0.85, list = FALSE)
+train_data <- ds_salaries_norm[sampling_vector, ]
+test_data <- ds_salaries_norm[-sampling_vector, ]
+
+#构建逻辑回归模型
+model <- glm(is_fully_remote ~ salary_in_usd_norm + experience_level + company_size,
+             data = train_data, family = "binomial")
+summary(model)
+```
+
+```{r}
+# 定义评估函数
+log_likelihoods <- function(y_labels, y_probs) {
+  y_a <- as.numeric(y_labels)
+  y_p <- as.numeric(y_probs)
+  y_a * log(y_p) + (1 - y_a) * log(1 - y_p)
+}
+
+dataset_log_likelihood <- function(y_labels, y_probs) {
+  sum(log_likelihoods(y_labels, y_probs))
+}
+
+deviances <- function(y_labels, y_probs) {
+  -2 * log_likelihoods(y_labels, y_probs)
+}
+
+dataset_deviance <- function(y_labels, y_probs) {
+  sum(deviances(y_labels, y_probs))
+}
+
+model_deviance <- function(model, data, output_column) {
+  y_labels <- data[[output_column]]
+  y_probs <- predict(model, newdata = data, type = "response")
+  dataset_deviance(y_labels, y_probs)
+}
+
+null_deviance <- function(data, output_column) {
+  y_labels <- data[[output_column]]
+  y_probs <- mean(as.numeric(data[[output_column]]) - 1)  # 调整为 0/1
+  dataset_deviance(y_labels, y_probs)
+}
+
+model_pseudo_r_squared <- function(model, data, output_column) {
+  1 - (model_deviance(model, data, output_column) / null_deviance(data, output_column))
+}
+
+model_chi_squared_p_value <- function(model, data, output_column) {
+  null_df <- nrow(data) - 1
+  model_df <- nrow(data) - length(model$coefficients)
+  difference_df <- null_df - model_df
+  null_dev <- null_deviance(data, output_column)
+  m_dev <- model_deviance(model, data, output_column)
+  difference_deviance <- null_dev - m_dev
+  pchisq(difference_deviance, difference_df, lower.tail = FALSE)
+}
+
+# 计算伪 R²
+pseudo_r2 <- model_pseudo_r_squared(model, train_data, "is_fully_remote")
+cat("伪 R²:", pseudo_r2, "\n")
+
+# 计算卡方检验 p 值
+chi_p_value <- model_chi_squared_p_value(model, train_data, "is_fully_remote")
+cat("卡方检验 p 值:", chi_p_value, "\n")
+```
+
+```{r}
+#测试集性能
+#训练集预测
+train_predictions <- predict(model, newdata = train_data, type = "response")
+train_class_predictions <- as.numeric(train_predictions > 0.5)
+train_accuracy <- mean(train_class_predictions == as.numeric(train_data$is_fully_remote) - 1)
+cat("训练集准确率:", train_accuracy, "\n")
+
+#测试集预测
+test_predictions <- predict(model, newdata = test_data, type = "response")
+test_class_predictions <- as.numeric(test_predictions > 0.5)
+test_accuracy <- mean(test_class_predictions == as.numeric(test_data$is_fully_remote) - 1)
+cat("测试集准确率:", test_accuracy, "\n")
+```
+
+```{r}
+# 正则化（LASSO 逻辑回归）
+# 准备矩阵格式数据
+train_mat <- model.matrix(is_fully_remote ~ salary_in_usd_norm + experience_level + company_size,
+                          data = train_data)[, -1]
+test_mat <- model.matrix(is_fully_remote ~ salary_in_usd_norm + experience_level + company_size,
+                         data = test_data)[, -1]
+
+# 定义 lambda 范围
+lambdas <- 10^seq(8, -4, length = 250)
+
+# LASSO 逻辑回归
+lasso_model <- glmnet(train_mat, train_data$is_fully_remote, alpha = 1, lambda = lambdas, family = "binomial")
+
+# 交叉验证选择最佳 lambda
+lasso_cv <- cv.glmnet(train_mat, train_data$is_fully_remote, alpha = 1, lambda = lambdas, family = "binomial")
+lambda_lasso <- lasso_cv$lambda.min
+cat("最佳 lambda:", lambda_lasso, "\n")
+
+# 查看系数
+print(predict(lasso_model, type = "coefficients", s = lambda_lasso))
+
+# LASSO 预测
+lasso_train_predictions <- predict(lasso_model, s = lambda_lasso, newx = train_mat, type = "response")
+lasso_train_class_predictions <- as.numeric(lasso_train_predictions > 0.5)
+lasso_train_accuracy <- mean(lasso_train_class_predictions == as.numeric(train_data$is_fully_remote) - 1)
+cat("LASSO 训练集准确率:", lasso_train_accuracy, "\n")
+
+lasso_test_predictions <- predict(lasso_model, s = lambda_lasso, newx = test_mat, type = "response")
+lasso_test_class_predictions <- as.numeric(lasso_test_predictions > 0.5)
+lasso_test_accuracy <- mean(lasso_test_class_predictions == as.numeric(test_data$is_fully_remote) - 1)
+cat("LASSO 测试集准确率:", lasso_test_accuracy, "\n")
+```
+
+```{r}
+#分类指标
+#混淆矩阵
+confusion_matrix <- table(predicted = train_class_predictions, actual = as.numeric(train_data$is_fully_remote) - 1)
+print("混淆矩阵:")
+print(confusion_matrix)
+
+#精确率、召回率、F1 分数
+precision <- confusion_matrix[2, 2] / sum(confusion_matrix[2, ])
+recall <- confusion_matrix[2, 2] / sum(confusion_matrix[, 2])
+f1 <- 2 * precision * recall / (precision + recall)
+cat("精确率:", precision, "\n")
+cat("召回率:", recall, "\n")
+cat("F1 分数:", f1, "\n")
+```
+
+```{r}
+# 构建多项式逻辑回归模型
+multi_model <- multinom(experience_level ~ salary_in_usd_norm + company_size,
+                        data = train_data, maxit = 1000)
+
+# 训练集预测
+multi_predictions <- predict(multi_model, train_data)
+# 确保预测结果和真实标签类型一致（都转为字符型）
+multi_train_accuracy <- mean(as.character(multi_predictions) == as.character(train_data$experience_level))
+cat("多项式逻辑回归训练集准确率:", multi_train_accuracy, "\n")
+#table(predicted = multi_predictions, actual = train_data$experience_level)
+
+# 测试集预测
+multi_test_predictions <- predict(multi_model, test_data)
+multi_test_accuracy <- mean(as.character(multi_test_predictions) == as.character(test_data$experience_level))
+cat("多项式逻辑回归测试集准确率:", multi_test_accuracy, "\n")
+#table(predicted = multi_test_predictions, actual = test_data$experience_level)
+```
+
+### 四、神经网络
+
+```{r}
+ds_salaries_norm$remote_ratio <- as.numeric(as.character(ds_salaries_norm$remote_ratio))
+ds_salaries_norm$work_year <- as.numeric(as.character(ds_salaries_norm$work_year))
+ds_salaries_norm$experience_level <- as.numeric(as.character(ds_salaries_norm$experience_level))
+ds_salaries_norm$company_size <- as.numeric(as.character(ds_salaries_norm$company_size))
+ds_salaries_norm$is_fully_remote <- as.numeric(as.character(ds_salaries_norm$is_fully_remote))
+ds_salaries_norm$salary_in_usd_norm <- as.numeric(as.character(ds_salaries_norm$salary_in_usd_norm))
+
+# 划分训练集和测试集
+sampling_vector <- createDataPartition(ds_salaries_norm$salary_in_usd_norm, p = 0.8, list = FALSE)
+train_data <- ds_salaries_norm[sampling_vector, ]
+test_data <- ds_salaries_norm[-sampling_vector, ]
+
+# 分离输入和输出
+train_inputs <- train_data[, -which(names(train_data) == "salary_in_usd_norm")]
+train_outputs <- train_data$salary_in_usd_norm
+test_inputs <- test_data[, -which(names(test_data) == "salary_in_usd_norm")]
+test_outputs <- test_data$salary_in_usd_norm
+
+# 归一化输入
+input_preprocess <- preProcess(train_inputs, method = c("range"))
+train_inputs_scaled <- predict(input_preprocess, train_inputs)
+test_inputs_scaled <- predict(input_preprocess, test_inputs)
+
+# 确保数据类型正确
+train_inputs_scaled <- as.data.frame(train_inputs_scaled)
+train_inputs_scaled[] <- lapply(train_inputs_scaled, as.numeric)
+test_inputs_scaled <- as.data.frame(test_inputs_scaled)
+test_inputs_scaled[] <- lapply(test_inputs_scaled, as.numeric)
+train_outputs <- as.numeric(train_outputs)
+
+# 合并训练数据
+train_data_combined <- cbind(train_inputs_scaled, salary_in_usd_norm = train_outputs)
+```
+
+```{r}
+# 对训练数据预处理（数值化）
+train_data_nn <- train_data |>
+  mutate(
+    remote_ratio = as.numeric(remote_ratio),
+    work_year = as.numeric(as.character(work_year)),
+    experience_level = as.numeric(factor(experience_level)),
+    company_size = as.numeric(factor(company_size)),
+    is_fully_remote = as.numeric(as.character(is_fully_remote))
+  )
+
+# 训练模型
+nn_model <- neuralnet(
+  salary_in_usd_norm ~ remote_ratio + work_year + experience_level + company_size + is_fully_remote,
+  data = train_data_nn,
+  hidden = c(5, 3),
+  linear.output = TRUE
+)
+
+# 对测试集做相同处理
+test_data_nn <- test_data |>
+  mutate(
+    remote_ratio = as.numeric(remote_ratio),
+    work_year = as.numeric(as.character(work_year)),
+    experience_level = as.numeric(factor(experience_level)),
+    company_size = as.numeric(factor(company_size)),
+    is_fully_remote = as.numeric(as.character(is_fully_remote))
+  )
+
+# 使用 compute 而非 prediction！
+nn_pred_train <- compute(nn_model, train_data_nn[, c("remote_ratio", "work_year", "experience_level", "company_size", "is_fully_remote")])
+predicted_train <- nn_pred_train$net.result
+mse_train <- mean((predicted_train - train_data_nn$salary_in_usd_norm)^2)
+cat("神经网络训练集的 MSE:", round(mse_train, 5), "\n")
+
+nn_pred <- compute(nn_model, test_data_nn[, c("remote_ratio", "work_year", "experience_level", "company_size", "is_fully_remote")])
+predicted_values <- nn_pred$net.result
+mse <- mean((predicted_values - test_data$salary_in_usd_norm)^2)
+cat("神经网络测试集的 MSE:", round(mse, 5), "\n")
+```
+
+```{r}
+# 用 compute 函数进行预测
+plot(nn_model)
+```
+
+### 五、支持向量机
+
+```{r}
+sampling_vector <- createDataPartition(ds_salaries_norm$salary_in_usd_norm, p = 0.8, list = FALSE)
+train_data <- ds_salaries_norm[sampling_vector, ]
+test_data <- ds_salaries_norm[-sampling_vector, ]
+
+# 分离输入和输出
+train_inputs <- train_data[, -which(names(train_data) == "salary_in_usd_norm")]
+train_outputs <- train_data$salary_in_usd_norm
+test_inputs <- test_data[, -which(names(test_data) == "salary_in_usd_norm")]
+test_outputs <- test_data$salary_in_usd_norm
+```
+
+```{r}
+# 归一化输入
+input_preprocess <- preProcess(train_inputs, method = c("range"))
+train_inputs_scaled <- predict(input_preprocess, train_inputs)
+test_inputs_scaled <- predict(input_preprocess, test_inputs)
+
+# 确保数据类型正确
+train_inputs_scaled <- as.data.frame(train_inputs_scaled)
+train_inputs_scaled[] <- lapply(train_inputs_scaled, as.numeric)
+test_inputs_scaled <- as.data.frame(test_inputs_scaled)
+test_inputs_scaled[] <- lapply(test_inputs_scaled, as.numeric)
+train_outputs <- as.numeric(train_outputs)
+
+train_data_combined <- cbind(train_inputs_scaled, salary_in_usd_norm = train_outputs)
+```
+
+```{r}
+#训练SVM
+svm_model <- svm(
+  salary_in_usd_norm ~ .,
+  data = train_data_combined,
+  type = "eps-regression",  # 用于回归的 SVR
+  kernel = "radial",        # 使用 RBF 核
+  cost = 1,                 # 正则化参数
+  epsilon = 0.1             # 误差容忍度
+)
+
+# 查看模型摘要
+summary(svm_model)
+```
+
+```{r}
+# 在测试集上预测
+predictions_test <- predict(svm_model, test_inputs_scaled)
+# 在训练集上预测
+predictions_train <- predict(svm_model, train_inputs_scaled)
+# 定义MSE函数
+mse <- function(y_p, y) {
+  return(mean((y - y_p)^2))
+}
+mse_test <- mse(predictions_test, test_outputs)
+correlation_test <- cor(predictions_test, test_outputs)
+mse_train <- mse(predictions_train, train_outputs)
+# 输出结果
+cat("训练集均方误差 (MSE):", mse_train, "\n")
+cat("测试集均方误差 (MSE):", mse_test, "\n")
+cat("测试集相关系数:", correlation_test, "\n")
+```
+
+```{r}
+#超参数调优
+tune_result <- tune(
+  svm,
+  salary_in_usd_norm ~ .,
+  data = train_data_combined,
+  ranges = list(
+    cost = c(0.1, 1, 10),
+    epsilon = c(0.01, 0.1, 0.5),
+    gamma = c(0.01, 0.1, 1)
+  ),
+  type = "eps-regression",
+  kernel = "radial"
+)
+
+# 查看最佳参数
+cat("最佳参数:\n")
+print(tune_result$best.parameters)
+
+# 使用最佳参数重新训练模型
+svm_model_tuned <- svm(
+  salary_in_usd_norm ~ .,
+  data = train_data_combined,
+  type = "eps-regression",
+  kernel = "radial",
+  cost = tune_result$best.parameters$cost,
+  epsilon = tune_result$best.parameters$epsilon,
+  gamma = tune_result$best.parameters$gamma
+)
+
+# 使用调优后的模型进行预测
+predictions_tuned <- predict(svm_model_tuned, test_inputs_scaled)
+
+# 计算调优后的 MSE 和相关系数
+mse_value_tuned <- mse(predictions_tuned, test_outputs)
+correlation_tuned <- cor(predictions_tuned, test_outputs)
+
+cat("调优后均方误差 (MSE):", mse_value_tuned, "\n")
+cat("调优后相关系数:", correlation_tuned, "\n")
+```
+
+### 六、树形方法
+
+```{r}
+# 划分训练集和测试集
+sampling_vector <- createDataPartition(ds_salaries_norm$salary_in_usd_norm, p = 0.8, list = FALSE)
+train_data <- ds_salaries_norm[sampling_vector, ]
+test_data <- ds_salaries_norm[-sampling_vector, ]
+
+# 分离输入和输出
+train_inputs <- train_data[, -which(names(train_data) == "salary_in_usd_norm")]
+train_outputs <- train_data$salary_in_usd_norm
+test_inputs <- test_data[, -which(names(test_data) == "salary_in_usd_norm")]
+test_outputs <- test_data$salary_in_usd_norm
+
+# 归一化输入
+input_preprocess <- preProcess(train_inputs, method = c("range"))
+train_inputs_scaled <- predict(input_preprocess, train_inputs)
+test_inputs_scaled <- predict(input_preprocess, test_inputs)
+
+# 确保数据类型正确
+train_inputs_scaled <- as.data.frame(train_inputs_scaled)
+train_inputs_scaled[] <- lapply(train_inputs_scaled, as.numeric)
+test_inputs_scaled <- as.data.frame(test_inputs_scaled)
+test_inputs_scaled[] <- lapply(test_inputs_scaled, as.numeric)
+train_outputs <- as.numeric(train_outputs)
+
+# 合并训练数据
+train_data_combined <- cbind(train_inputs_scaled, salary_in_usd_norm = train_outputs)
+```
+
+```{r}
+# 训练决策树
+tree_model <- rpart(
+  salary_in_usd_norm ~ .,
+  data = train_data_combined,
+  method = "anova"  # 用于回归
+)
+
+# 在训练集和测试集上预测
+predictions_tree_train <- predict(tree_model, train_data_combined)  # 训练集预测
+predictions_tree_test <- predict(tree_model, test_inputs_scaled)    # 测试集预测
+
+# 定义MSE函数
+mse <- function(y_p, y) {
+  return(mean((y - y_p)^2))
+}
+
+# 计算训练集和测试集的MSE
+mse_value_train <- mse(predictions_tree_train, train_data_combined$salary_in_usd_norm)
+mse_value_test <- mse(predictions_tree_test, test_outputs)
+
+# 定义容差范围并计算伪 accuracy（仅针对测试集）
+tolerance <- 0.05
+within_tolerance_tree <- abs(predictions_tree_test - test_outputs) <= tolerance
+pseudo_accuracy_tree <- mean(within_tolerance_tree)
+
+# 计算测试集相关系数
+correlation_tree <- cor(predictions_tree_test, test_outputs)
+
+# 输出结果
+cat("训练集均方误差 (MSE):", mse_value_train, "\n")
+cat("测试集均方误差 (MSE):", mse_value_test, "\n")
+cat("决策树模型的伪 Accuracy（容差 = 0.05）:", pseudo_accuracy_tree, "\n")
+cat("决策树模型的相关系数:", correlation_tree, "\n")
+```
+
+```{r}
+# 训练随机森林
+rf_model <- randomForest(
+  salary_in_usd_norm ~ .,
+  data = train_data_combined,
+  ntree = 500,
+  mtry = 2,
+  importance = TRUE
+)
+
+# 在训练集和测试集上预测
+predictions_rf_train <- predict(rf_model, train_data_combined)  # 训练集预测
+predictions_rf_test <- predict(rf_model, test_inputs_scaled)    # 测试集预测
+
+# 定义MSE函数
+mse <- function(y_p, y) {
+  return(mean((y - y_p)^2))
+}
+
+# 计算训练集和测试集的MSE
+mse_value_train <- mse(predictions_rf_train, train_data_combined$salary_in_usd_norm)
+mse_value_test <- mse(predictions_rf_test, test_outputs)
+
+# 计算伪 accuracy（仅针对测试集）
+tolerance <- 0.05
+within_tolerance_rf <- abs(predictions_rf_test - test_outputs) <= tolerance
+pseudo_accuracy_rf <- mean(within_tolerance_rf)
+
+# 计算测试集相关系数
+correlation_rf <- cor(predictions_rf_test, test_outputs)
+
+# 输出结果
+cat("训练集均方误差 (MSE):", mse_value_train, "\n")
+cat("测试集均方误差 (MSE):", mse_value_test, "\n")
+cat("随机森林模型的伪 Accuracy（容差 = 0.05）:", pseudo_accuracy_rf, "\n")
+cat("随机森林模型的相关系数:", correlation_rf, "\n")
+
+# 查看特征重要性
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+cat("开始超参数调优...\n")
+tune_result <- tuneRF(
+  x = train_inputs_scaled,          # 标准化后的输入特征
+  y = train_outputs,                # 目标变量
+  ntreeTry = 500,                   # 尝试的树数量
+  stepFactor = 1.5,                 # mtry 搜索的步长因子
+  improve = 0.01,                   # 袋外误差的最小改进
+  trace = TRUE,                     # 打印调优过程
+  plot = TRUE                       # 绘制 mtry 与袋外误差的关系图
+)
+
+best_mtry <- tune_result[which.min(tune_result[, "OOBError"]), "mtry"]
+cat("最佳 mtry 值:", best_mtry, "\n")
+
+cat("使用调优后的 mtry 训练随机森林模型...\n")
+rf_model_tuned <- randomForest(
+  salary_in_usd_norm ~ .,           # 回归任务公式
+  data = train_data_combined,       # 训练数据集
+  ntree = 500,                      # 树数量
+  mtry = best_mtry,                 # 最佳 mtry 值
+  importance = TRUE                 # 计算特征重要性
+)
+
+predictions_rf_tuned <- predict(rf_model_tuned, newdata = test_inputs_scaled)
+
+#评估模型性能
+mse <- mean((predictions_rf_tuned - test_outputs)^2)
+rmse <- sqrt(mse)
+mae <- mean(abs(predictions_rf_tuned - test_outputs))
+
+cat("调优后随机森林模型性能:\n")
+cat("均方误差 (MSE):", mse, "\n")
+cat("均方根误差 (RMSE):", rmse, "\n")
+cat("平均绝对误差 (MAE):", mae, "\n")
+
+#查看特征重要性
+importance <- importance(rf_model_tuned)
+cat("\n特征重要性:\n")
+print(importance)
+
+#绘制特征重要性图
+varImpPlot(rf_model_tuned, 
+           main = "Feature Importance in Tuned Random Forest Model",  # 图表标题
+           pch = 19,         # 点的形状（实心圆）
+           col = "blue",     # 点的颜色
+           cex = 1.2,        # 点和文本的大小
+           n.var = min(10, nrow(rf_model_tuned$importance)),  # 显示前10个特征
+           sort = TRUE       # 按重要性排序
+)
+```
+
+### 七、Bagging
+
+```{r}
+train_index <- createDataPartition(ds_salaries_norm$salary_in_usd_norm, p = 0.8, list = FALSE)
+train_data <- ds_salaries_norm[train_index, ]
+test_data <- ds_salaries_norm[-train_index, ]
+```
+
+```{r}
+# 训练Bagging模型
+bagging_model <- bagging(
+  formula = salary_in_usd_norm ~ remote_ratio + work_year + experience_level + company_size + is_fully_remote,
+  data = train_data,
+  coob = TRUE  # Out-of-bag error estimate
+)
+
+# 在训练集和测试集上预测
+predictions_train <- predict(bagging_model, newdata = train_data)  # 训练集预测
+predictions_test <- predict(bagging_model, newdata = test_data)    # 测试集预测
+
+# 计算训练集和测试集的MSE
+mse_train <- mean((predictions_train - train_data$salary_in_usd_norm)^2)
+mse_test <- mean((predictions_test - test_data$salary_in_usd_norm)^2)
+
+# 输出结果
+print(paste("训练集 MSE: ", round(mse_train, 5)))
+print(paste("测试集 MSE: ", round(mse_test, 5)))
+```
+
+```{r}
+#bagging与随机森林的比较
+# Bagging 
+set.seed
+bagging_model <- bagging(
+  salary_in_usd_norm ~ remote_ratio + work_year + experience_level + company_size + is_fully_remote,
+  data = train_data
+)
+bagging_preds <- predict(bagging_model, newdata = test_data)
+
+# Random Forest 模型
+rf_model <- randomForest(
+  salary_in_usd_norm ~ remote_ratio + work_year + experience_level + company_size + is_fully_remote,
+  data = train_data,
+  importance = TRUE
+)
+rf_preds <- predict(rf_model, newdata = test_data)
+
+#计算误差
+bagging_mse <- mean((bagging_preds - test_data$salary_in_usd_norm)^2)
+rf_mse <- mean((rf_preds - test_data$salary_in_usd_norm)^2)
+
+cat("Bagging MSE: ", round(bagging_mse, 5), "\n")
+cat("Random Forest MSE: ", round(rf_mse, 5), "\n")
+
+#可视化
+compare_df <- data.frame(
+  Actual = test_data$salary_in_usd_norm,
+  Bagging = bagging_preds,
+  RandomForest = rf_preds
+)
+
+ggplot(compare_df, aes(x = Actual)) +
+  geom_point(aes(y = Bagging, color = "Bagging"), alpha = 0.6) +
+  geom_point(aes(y = RandomForest, color = "Random Forest"), alpha = 0.6) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(x = "true_value", y = "predict_value", color = "model") +
+  theme_bw()
+```
+
+### 八、朴素贝叶斯
+
+```{r}
+ds_data_bayes <- ds_salaries_norm |>
+  mutate(salary_level = case_when(
+    salary_in_usd_norm < 0.3 ~ "low",
+    salary_in_usd_norm < 0.5 ~ "median",
+    TRUE ~ "high"
+  )) |>
+  mutate(salary_level = factor(salary_level, levels = c("low", "median", "high")))
+```
+
+```{r}
+# 朴素贝叶斯部分
+ds_data_bayes <- ds_salaries_norm %>%
+  mutate(salary_level = case_when(
+    salary_in_usd_norm < 0.3 ~ "low",
+    salary_in_usd_norm < 0.5 ~ "median",
+    TRUE ~ "high"
+  )) %>%
+  mutate(salary_level = factor(salary_level, levels = c("low", "median", "high")))
+
+# 数据划分
+set.seed(123)  # 设置随机种子以确保可重复性
+train_index <- createDataPartition(ds_data_bayes$salary_level, p = 0.8, list = FALSE)
+train_data <- ds_data_bayes[train_index, ]
+test_data <- ds_data_bayes[-train_index, ]
+
+# 检查类别分布，确保没有严重不平衡
+print("训练集类别分布：")
+print(table(train_data$salary_level))
+print("测试集类别分布：")
+print(table(test_data$salary_level))
+
+# naiveBayes 训练模型
+nb_model <- naiveBayes(
+  salary_level ~ remote_ratio + work_year + experience_level + company_size + is_fully_remote,
+  data = train_data
+)
+
+# 在训练集和测试集上预测
+nb_preds_train <- predict(nb_model, newdata = train_data)  # 训练集预测
+nb_preds_test <- predict(nb_model, newdata = test_data)    # 测试集预测
+
+# 训练集和测试集的混淆矩阵及评估
+conf_mat_train <- confusionMatrix(nb_preds_train, train_data$salary_level, mode = "everything")
+conf_mat_test <- confusionMatrix(nb_preds_test, test_data$salary_level, mode = "everything")
+
+# 输出结果
+print("训练集混淆矩阵及评估：")
+print(conf_mat_train)
+print("测试集混淆矩阵及评估：")
+print(conf_mat_test)
+```
+
+```{r}
+# 在训练集和测试集上预测
+nb_preds_train <- predict(nb_model, newdata = train_data)
+nb_preds_test <- predict(nb_model, newdata = test_data)
+
+# 计算训练集和测试集的正确率
+train_accuracy <- mean(nb_preds_train == train_data$salary_level)
+test_accuracy <- mean(nb_preds_test == test_data$salary_level)
+
+# 输出正确率
+print(paste("训练集正确率 (Accuracy): ", round(train_accuracy, 4)))
+print(paste("测试集正确率 (Accuracy): ", round(test_accuracy, 4)))
+```
+
+```{r}
+# 将分类标签转换为数值：low=1, median=2, high=3
+label_to_numeric <- function(labels) {
+  as.numeric(factor(labels, levels = c("low", "median", "high")))
+}
+
+# 转换真实值和预测值为数值
+train_true_numeric <- label_to_numeric(train_data$salary_level)
+train_pred_numeric <- label_to_numeric(nb_preds_train)
+test_true_numeric <- label_to_numeric(test_data$salary_level)
+test_pred_numeric <- label_to_numeric(nb_preds_test)
+
+# 计算伪MSE
+pseudo_mse_train <- mean((train_true_numeric - train_pred_numeric)^2)
+pseudo_mse_test <- mean((test_true_numeric - test_pred_numeric)^2)
+
+# 输出伪MSE
+print(paste("训练集伪MSE（分类标签转数值后）: ", round(pseudo_mse_train, 5)))
+print(paste("测试集伪MSE（分类标签转数值后）: ", round(pseudo_mse_test, 5)))
+```

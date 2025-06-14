@@ -1,0 +1,312 @@
+---
+title: "时间序列论文"
+author: "cs"
+date: "2024-12-02"
+output: html_document
+---
+
+```{r,warning=FALSE}
+# 核心数据处理和可视化
+library(tidyverse)
+
+# 统计测试、时间序列分析及模型评估
+library(boot)
+library(lmtest)
+library(caret)
+library(car)
+library(MASS)
+
+# 时间序列处理
+library(xts)
+library(tseries)
+library(vars)
+
+# 回归分析和模型选择
+library(glmnet)
+library(ncvreg)
+library(leaps)
+
+# 心理测量学函数
+library(psych)
+
+# 金融时间序列分析
+library(fGarch)
+library(rugarch)
+library(urca)
+```
+
+```{r}
+new_data_sorted <- read.csv("D:/桌面/时间序列分析 论文/new_data_sorted.csv")
+```
+
+```{r}
+names(new_data_sorted) <- c("Years","Wage_index","Jobless_rate","Price_index","D_income","Number_of_g","A_housing_price","B_rate")
+```
+
+```{r}
+table <- describe(new_data_sorted)
+```
+
+
+```{r}
+new_data_sorted$Years <- as.Date(new_data_sorted$Years,format = "%Y/%m/%d")
+```
+
+多元回归模型
+```{r}
+y <- new_data_sorted$B_rate
+X <- as.matrix(new_data_sorted[,c("Wage_index","Jobless_rate","Price_index","D_income","Number_of_g","A_housing_price")])
+
+```
+
+```{r}
+#标准化
+X_scaled <- scale(X)
+y_scaled <- scale(y)
+```
+
+稳健标准误估计
+OLS估计 无需标准化
+```{r}
+lm_model <- lm(y ~ X , data = new_data_sorted)
+
+summary(lm_model)
+```
+
+首先，通过了联合显著性检验
+由于时间序列数据，所以考虑时间固定效应：为每个时间点创建一个虚拟变量
+```{r}
+# 创建时间虚拟变量
+new_data_sorted <- new_data_sorted |>
+    mutate(year_factor = factor(Years))
+str(new_data_sorted)
+```
+
+```{r}
+# 运行包含时间固定效应的多元线性回归
+model_with_time_fixed_effects <- lm(y ~ X + year_factor, data = new_data_sorted)
+
+# 查看模型摘要
+summary(model_with_time_fixed_effects)
+```
+
+这说明检验自变量之间存在完全的多重共线性。这意味着这些自变量之间存在完美的线性关系，使得模型无法唯一确定每个系数的估计值。
+```{r}
+VIF_model <- lm(B_rate ~ Wage_index + Jobless_rate + Price_index + D_income + Number_of_g + A_housing_price, data = new_data_sorted)
+vif(VIF_model)
+```
+
+综合VIF方差膨因子 和 逐步回归的结果
+```{r}
+X_reduced <- as.matrix(new_data_sorted[,c("Wage_index","Jobless_rate","A_housing_price")])
+X_reduced_scaled <- scale(X_reduced)
+```
+
+ncvreg()函数用于拟合带有一系列正则化参数的线性模型，SCAD（平滑剪切绝对偏差）等惩罚方法。对于使用 SCAD 惩罚的模型，标准化数据通常是推荐的做法
+
+SCAD可以实现变量选择，通过将不重要的自变量的系数压缩到零来简化模型。这有助于处理多重共线性问题，因为高度相关的自变量中的一些可能会被排除。
+```{r}
+# 训练标准化后的模型
+scad_model_scaled <- ncvreg(X_scaled, y_scaled, penalty = "SCAD", family = "gaussian")
+
+# 提取标准化后的系数
+final_coefficients_scaled <- coef(scad_model_scaled)
+```
+
+```{r}
+print(final_coefficients_scaled)
+```
+
+选择最优的λ值是正则化方法（如LASSO、岭回归和SCAD）中的一个关键步骤，因为λ值控制了模型的复杂度和正则化的强度。通过选择最优的λ值，我们可以平衡模型的拟合能力和泛化能力，从而避免过拟合或欠拟合。
+
+
+教育、人均可支配收入 对 出生率 的影响
+```{r}
+edb_model <- lm(B_rate ~ D_income + Number_of_g, data = new_data_sorted)
+summary(edb_model)
+vif(edb_model)
+```
+
+```{r}
+#加入时间固定效应
+edb_model_time <- lm(B_rate ~ D_income + Number_of_g + year_factor, data = new_data_sorted)
+summary(edb_model_time)
+```
+
+在多元线性回归模型中添加时间固定效应后，如果某个自变量的系数估计显著增加，这表明通过控制所有随时间变化但对所有个体相同的影响因素，模型更准确地分离出了该自变量与因变量之间纯粹的关系，剔除了可能存在的时间趋势或周期性变化的干扰。同时，这也意味着任何未观测到的时间依赖性遗漏变量的影响被部分消除，减少了这些混杂因素带来的噪声，使得自变量的真实效应得以显现，尤其是短期内的变化模式和动态关系得到了更好的捕捉。此外，这种变化强调了该自变量在控制了其他时间相关因素之后的重要性，提高了模型的解释力和可靠性，揭示出自变量与因变量之间比之前认为的更强的关系，提供了对两者间潜在因果机制更为精确的理解。
+
+VAR、VECM
+```{r}
+#2003 - 2023
+#放到开始的描述性统计
+B_rate <- ts(new_data_sorted$B_rate,start = c(2003,3), end = c(2022,3), freq = 4)
+A_housing_price <- ts(new_data_sorted$A_housing_price,start = c(2003,3), end = c(2022,3), freq = 4)
+Jobless_rate <- ts(new_data_sorted$Jobless_rate,start = c(2003,3), end = c(2022,3), freq = 4)
+D_income <- ts(new_data_sorted$D_income,start = c(2003,3), end = c(2022,3), freq = 4)
+Wage_index <- ts(new_data_sorted$Wage_index,start = c(2003,3), end = c(2022,3), freq = 4)
+Number_of_g <- ts(new_data_sorted$Number_of_g,start = c(2003,3), end = c(2022,3), freq = 4)
+Price_index <- ts(new_data_sorted$Price_index,start = c(2003,3), end = c(2022,3), freq = 4)
+```
+
+```{r,fig.width= 10,fig.height= 6}
+par(mfrow = c(3,3))
+plot(B_rate,xlab="",ylab = "",main = "B_rate")
+plot(A_housing_price,xlab="",ylab = "",main = "A_housing_price")
+plot(Jobless_rate,xlab="",ylab = "",main = "Jobless_rate")
+plot(D_income,xlab="",ylab = "",main = "D_income")
+plot(Wage_index,xlab="",ylab = "",main = "Wage_index")
+plot(Price_index,xlab="",ylab = "",main = "Price_index")
+plot(Number_of_g,xlab="",ylab = "",main = "Number_of_g")
+#感兴趣的 B_rate  Jobless_rate  Wage_index
+```
+
+```{r,fig.height=6,fig.width=10}
+par(mfrow = c(3,1))
+plot(B_rate,xlab="",ylab = "",main = "B_rate")
+plot(A_housing_price,xlab="",ylab = "",main = "A_housing_price")
+plot(Jobless_rate,xlab="",ylab = "",main = "Jobless_rate")
+```
+初始数据的adf检验，均不平稳
+```{r}
+adf.test(A_housing_price)
+adf.test(B_rate)
+adf.test(Jobless_rate)
+```
+
+三阶差分后达到平稳
+```{r}
+adf.test(diff(diff(diff(A_housing_price))))
+adf.test(diff(diff(diff(B_rate))))
+adf.test(diff(diff(diff(Jobless_rate))))
+```
+
+```{r}
+#选择滞后阶数
+vecm_data <- cbind(B_rate,Jobless_rate,A_housing_price)
+VARselect(vecm_data,lag.max = 8,type = 'none')
+```
+
+```{r}
+varmodel<-VAR(vecm_data,p=8,type="none")
+roots(varmodel)
+```
+
+```{r}
+#模拟前辈的做法
+vecmmodel1<-ca.jo(vecm_data,type="trace",ecdet="trend",K=8,spec="transitory")
+vecmmodel3<-ca.jo(vecm_data,type="trace",ecdet="none",K=8,spec="transitory")
+vecmmodele11<-ca.jo(vecm_data,type="eigen",ecdet="trend",K=8,spec="transitory")
+vecmmodele13<-ca.jo(vecm_data,type="eigen",ecdet="none",K=8,spec="transitory")
+
+#None：协整空间无常数项无趋势项，数据空间有常数项无趋势项。
+#Trend：协整空间有趋势项无常数项，数据空间有常数项无趋势项。
+
+summary(vecmmodel1)   
+summary(vecmmodel3) 
+summary(vecmmodele11)  
+summary(vecmmodele13)
+```
+```{r}
+#none 或者 trend？
+lttest(vecmmodel1,r=1)
+```
+
+```{r}
+# 使用cajo进行协整关系检验：有几个协整关系
+vecmmodel<-ca.jo(vecm_data,type="trace",ecdet="trend",K=8,spec="transitory")
+summary(vecmmodel)       # 说明在1%的显著性水平下有一个协整关系
+
+vecmmodele1<-ca.jo(vecm_data,type="eigen",ecdet="trend",K=8,spec="transitory")
+summary(vecmmodele1)  
+```
+
+```{r}
+vecm.r<-cajorls(vecmmodel,r=1)
+#查看误差校正矩阵、常数项及差分解释变量的估计值
+summary(vecm.r$rlm)
+# cajo restricted LS
+#标准化后的协整向量矩阵
+beta <- vecm.r$beta
+beta
+alpha<-coef(vecm.r$rlm)[1,]
+alpha
+
+#得到的模型的系数
+coef(vecm.r$rlm)
+vecmols<-cajools(vecmmodel)
+summary(vecmols)
+#this is the cointegating equation.
+summary(vecm.r$rlm)
+```
+
+
+```{r,fig.height=5}
+# 对残差进行检验,结果表明可以认为彼此之间是独立的
+res<-resid(vecm.r$rlm)
+par(mfrow=c(3,1))
+acf(res[,1],ci=0.9999)
+acf(res[,2],ci=0.9999)
+acf(res[,3],ci=0.9999)
+par(opar)
+```
+
+```{r}
+summary(blrtest(vecmmodel,H=vecm.r$beta,r=1))
+```
+
+```{r}
+# 把 vec 转化成 var 模型
+vecmtovar<-vec2var(vecmmodel,r=1)
+
+# 进行预测
+par(mfrow = c(3,1))
+plot(predict(vecmtovar), names="B_rate", main="B_rate")
+plot(predict(vecmtovar), names="A_housing_price", main="A_housing_price")
+plot(predict(vecmtovar), names="Jobless_rate", main="Jobless_rate")
+par(opar)
+```
+
+脉冲效应
+```{r}
+#对B_rate
+irf_1<- irf(vecmtovar, impulse = 'A_housing_price', 
+                  response = 'B_rate', n.ahead = 36, boot = T, seed = 1234)
+plot(irf_1,main = "Impulse from A_housing_price")
+
+irf_2<- irf(vecmtovar, impulse = 'Jobless_rate', 
+                  response = 'B_rate', n.ahead = 36, boot = T,seed = 1234)
+plot(irf_2,main = "Impulse from Jobless_rate")
+```
+
+```{r}
+#对A_housing_price
+irf_3<- irf(vecmtovar, impulse = 'B_rate', 
+                  response = 'A_housing_price', n.ahead = 36, boot = T, seed = 1234)
+plot(irf_3,main = "Impulse from B_rate")
+
+irf_4<- irf(vecmtovar, impulse = 'Jobless_rate', 
+                  response = 'A_housing_price', n.ahead = 36, boot = T, seed = 1234)
+plot(irf_4,main = "Impulse from Jobless_rate")
+```
+
+```{r}
+#对Jobless_rate
+irf_5<- irf(vecmtovar, impulse = 'B_rate', 
+                  response = 'Jobless_rate', n.ahead = 36, boot = T, seed = 1234)
+plot(irf_5,main = "Impulse from B_rate")
+
+irf_6<- irf(vecmtovar, impulse = 'A_housing_price', 
+                  response = 'Jobless_rate', n.ahead = 36, boot = T, seed = 1234)
+plot(irf_6,main = "Impulse from A_housing_price")
+```
+
+
+方差分解
+```{r}
+fevd_data <- fevd(vecmtovar,n.ahead=60)
+fevd_data
+```
+
+```{r,fig.height= 5}
+plot(fevd_data)
+```
