@@ -136,6 +136,8 @@ Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio cov
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/7c99155a-2dff-482c-8983-1b5616689ff2" />
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/e7e9cd42-173b-439b-a86a-4cb9fb434548" />
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/2f63494b-eb0e-4911-9293-e2f74d83befe" />
+  <img width="400" alt="image" src="https://github.com/user-attachments/assets/a328194e-4b66-4b77-8f78-1d908e14cd8c" />
+
 </p>
 
 
