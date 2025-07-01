@@ -85,7 +85,13 @@ Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio cov
 
 基于Kaggle平台2023年国外数据科学家薪水数据集，运用线性回归、神经网络、支持向量机及随机森林等多种机器学习模型，对数据科学家薪资影响因素进行分析与预测，通过特征工程、超参数调优及模型性能对比，揭示经验水平、工作类型等特征对薪资的影响规律。
 
+### [**Kaggle 经典竞赛 2024-2025**](https://github.com/carloschen-2004/Chenshi-s-Portfolio1/tree/main/%E6%95%B0%E6%8D%AE%E7%A7%91%E5%AD%A6%E7%B1%BB/kaggle)
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/bfa92bc3-e7f6-41ef-89c6-c894a71adf29" />
 
+包含：（1）泰坦尼克号幸存者预测竞赛 RIP （2）罗斯曼商店销售预测竞赛
+
+
+## 商业科学 & 商业分析  Business Science & Business Analysis
 
 
 
