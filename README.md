@@ -1,5 +1,7 @@
 # Chenshi-s-Portfolio
-武汉大学 管理科学与工程 陈实 的作品集，涵盖（1）**商科**（2）**数据科学与数据分析** 领域的一些微薄成绩，包括竞赛、课设作品等等。
+| <img width="100" alt="image" src="https://github.com/user-attachments/assets/f70b838e-35ff-43fe-8403-c01b143539eb" /> | 武汉大学 管理科学与工程 陈实 的作品集，涵盖     （1）数据科学&数据分析 （2）商业科学&商业分析 等领域的一些微薄成绩，包括竞赛、课设作品等，谢谢！ |
+| --- | --- |
+
 
 Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio covers (1) **Business** and (2) **Data Science and Data Analysis**, including some modest achievements in competitions, course projects, etc.
 
@@ -126,16 +128,15 @@ Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio cov
 ## 核心技能与兴趣爱好 Core Skills and Interests
 - **TA经历**：2025.02-2025.06，担任管工系廖颖老师(特聘研究员)的 R语言数据分析 课程助教，具有与导师良好的沟通、办事能力
 - **技能**：英语CET-6(612),普通话(一级乙等) ;**Python**(Gurobi\ML\DL),**R**(熟练),**SQL**(熟练),SPSS ; Linux ; Office ; Tableau ; C ; C++
-- **兴趣爱好**：健身,篮球,龙舟(**武汉大学龙舟队 副队长**: 2023年 昆明全国大学生龙舟锦标赛团体三等奖等等),阅读,音乐,AI,Web3
+- **兴趣爱好**：**健身**【卧推：115kg｜硬拉：190kg｜深蹲：155kg｜合计：460kg】（不断进步中！）,篮球（武汉大学城市设计学院院队）,龙舟(**武汉大学龙舟队 副队长**: 2023年 昆明全国大学生龙舟锦标赛团体三等奖、2023年襄阳龙舟公开邀请赛团体第六名，2023年河北邢台世界龙舟邀请赛团体三等奖。2023年武汉大学龙舟拔河冠军等等),跑步,阅读,音乐,AI,Web3
 
 <p>
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/d4aac740-bf67-4cbf-92f7-ee16a2812789">
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/3f4683c4-dac4-4ede-b374-56540d7f5ecb">
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/7c99155a-2dff-482c-8983-1b5616689ff2" />
   <img width="400" alt="image" src="https://github.com/user-attachments/assets/e7e9cd42-173b-439b-a86a-4cb9fb434548" />
-
+  <img width="400" alt="image" src="https://github.com/user-attachments/assets/2f63494b-eb0e-4911-9293-e2f74d83befe" />
 </p>
-
 
 
 - **TA experience**: 2025.02-2025.06, served as an assistant teacher for **R language data analysis course** of teacher Liao Ying (distinguished researcher) of the Department of Management Engineering, with good communication and work ability with the tutor
