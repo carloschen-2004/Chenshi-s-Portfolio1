@@ -33,7 +33,7 @@ Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio cov
 
 
 ### [**2025年华中杯数学建模大赛 省级二等奖 05/2025**](https://github.com/carloschen-2004/Chenshi-s-Portfolio1/tree/main/%E6%95%B0%E6%8D%AE%E7%A7%91%E5%AD%A6%E7%B1%BB/2025%E5%B9%B4%E5%8D%8E%E4%B8%AD%E6%9D%AF%E6%95%B0%E5%AD%A6%E5%BB%BA%E6%A8%A1%E6%AF%94%E8%B5%9B)
-<img width = "300" height = "350" alt = "image" src = "https://github.com/user-attachments/assets/fccf5671-f4a3-4df6-9190-a07386dd1963" />
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/418c3de1-6a16-4571-9047-e979ff5c5ebf" />
 
 [**比赛概述**] B 题：校园共享单车的调度与维护问题
 - 总量与分布估计：采用均值填补与同类型点位趋势估算方法处理缺失值;结合最小二乘法和 K-means 聚类估算总量并优化流动性；利用三次样条插值法生成高粒度时间序列分布。
@@ -92,15 +92,41 @@ Wuhan University｜Management Science and Engineering｜Chen Shi's portfolio cov
 
 
 ## 商业科学 & 商业分析  Business Science & Business Analysis
+### [**商挑精英——品牌策划大赛 国家级二等奖 2025**](https://github.com/carloschen-2004/Chenshi-s-Portfolio1/tree/main/%E5%95%86%E7%A7%91%E7%B1%BB/%E5%95%86%E6%8C%91%E7%B2%BE%E8%8B%B1%E2%80%94%E2%80%94%E5%93%81%E7%89%8C%E7%AD%96%E5%88%92%E5%A4%A7%E8%B5%9B)
+<img width="600" alt="image" src="https://github.com/user-attachments/assets/f2e75a62-a9f1-4e7d-a884-22e0bc021e30" />
 
+《**正兴染坊 蓝印花布品牌策划书**》
+
+[**比赛概述**] 对南通市非遗工艺“蓝印花布”正兴染坊进行实践调研;分析品牌现状、环境优势与挑战，提出了全面的品牌发展战略。
+- 品牌战略与定位：通过 SWOT｜PEST｜五力模型 评估“正兴染坊”在工艺、渠道及非遗地位上的优劣势，识别市场机遇与挑战。
+- 营销与传播：构建 AI 驱动的蓝印花布定制网页;采用 KOL+KOC 组合营销，构建全媒体营销矩阵，涵盖抖音/小红书等平台。
+- 运营规划:采用 AARRR 模型明确财务预算、保本分析与预期收益，确保项目可行性。
+
+### [**第三十届康腾案例分析大赛 决赛入围 2024**](https://github.com/carloschen-2004/Chenshi-s-Portfolio1/tree/main/%E5%95%86%E7%A7%91%E7%B1%BB/%E7%AC%AC%E4%B8%89%E5%8D%81%E5%B1%8A%E5%BA%B7%E8%85%BE%E6%A1%88%E4%BE%8B%E5%88%86%E6%9E%90%E5%A4%A7%E8%B5%9B)
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/e578b22c-863e-4179-a36e-0568b75b0891" />
+
+《**智能新纪元——如何利用AI推进工业革命**》
+
+[**比赛概述**] 聚焦AI技术驱动第四次工业革命的商业落地，通过产业链分析、政策解构及案例建模，探索 AI 技术在产业升级中的商业化路径，为企业战略布局提供数据支撑与决策参考。
+- 分层分析：构建“基础层-技术层-应用层”商业模型，发现应用层利润率（17.34%）显著高于基础层与技术层，剖析基础层核心资源竞争格局，为供应链策略提供依据。    
+- 环境评估：运用PEST模型和DID双差分模型，量化分析政策、经济等因素对企业AI渗透度及技术投入的驱动效应。    
+- 战略解构：以百度智能驾驶为例，通过波士顿矩阵分析业务商业价值，拆解全栈布局的研发与商业化平衡策略，提炼技术商业化路径。    
+
+### [**清华经管主办“今经乐道”案例分析大赛 全国二十五强 2023**](https://github.com/carloschen-2004/Chenshi-s-Portfolio1/tree/main/%E5%95%86%E7%A7%91%E7%B1%BB/%E6%B8%85%E5%8D%8E%E7%BB%8F%E7%AE%A1%E4%B8%BB%E5%8A%9E%E2%80%9C%E4%BB%8A%E7%BB%8F%E4%B9%90%E9%81%93%E2%80%9D%E6%A1%88%E4%BE%8B%E5%88%86%E6%9E%90%E5%A4%A7%E8%B5%9B)
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/19aa998c-03fc-4ef5-9c53-0e6a59f9ffd5" />
+
+《**以人为本——AI赋能智能家居**》
+
+[**比赛概述**] 聚焦智能家居行业技术演进与商业化落地，通过产业链分析、案例解构及战略规划，探索 AI 技术在智能家居场景中的用户需求适配与产业升级路径。
+- 分层分析：构建 “上游技术层（芯片 / 传感器）- 中游应用层（设计制造）- 下游消费市场（To B/To C）” 的产业链模型。
+- 环境评估：从 PEST 角度分析了行业外部环境，指出发展阻力，如数据安全、技术、成本、行业标准、社会合作等方面的问题。
+- 案例分析：以小米公司为例进行案例分析，介绍其主营业务、发展阶段、SWOT 分析、核心战略、供应链、竞争环境及特点等。
 
 
 ## 核心技能与兴趣爱好 Core Skills and Interests
 - **TA经历**：2025.02-2025.06，担任管工系廖颖老师(特聘研究员)的 R语言数据分析 课程助教，具有与导师良好的沟通、办事能力
-- **优秀课设**:《Analysis and visualization of NBA data》:对NBA数据进行PCA/t-SNE/Umap降维;DBSCAN聚类GBDT/SVM；《构建明日社会：房价、就业与生育率的协同演变路径》:VAR/VECM模型、脉冲响应和方差分解。
-- **智能优化算法设计**：采用TS+SA+多种邻域操作解决复杂的CBRPTW问题，得到了专业前四的排名。
-- **技能**：英语CET-6(612),普通话(一级乙等) ; Python(Gurobi\ML\DL),R(熟练),SQL(熟练),SPSS ; Linux ; Office ; Tableau ; C
-- **兴趣爱好**：健身,篮球,龙舟(武汉大学龙舟队 副队长: 2023年 昆明全国大学生龙舟锦标赛团体三等奖等等),阅读,音乐,AI,Web3
+- **技能**：英语CET-6(612),普通话(一级乙等) ; Python(Gurobi\ML\DL),R(熟练),SQL(熟练),SPSS ; Linux ; Office ; Tableau ; C ; C++
+- **兴趣爱好**：健身,篮球,龙舟(**武汉大学龙舟队 副队长**: 2023年 昆明全国大学生龙舟锦标赛团体三等奖等等),阅读,音乐,AI,Web3
   
 
 - **TA experience**: 2025.02-2025.06, served as an assistant teacher for **R language data analysis course** of teacher Liao Ying (distinguished researcher) of the Department of Management Engineering, with good communication and work ability with the tutor
